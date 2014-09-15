@@ -277,7 +277,7 @@ static uint8_t *add_head(uint8_t *buf, uint32_t len, char *dst_ip)
 	ip->ip_hl = sizeof *ip >> 2;
 	ip->ip_tos = 0;
 	ip->ip_len = htons(len+28);
-    ip_id_s = (ip_id_s + 1)%255;
+    ip_id_s = (ip_id_s + 1)%65536;
 	ip->ip_id = htons(ip_id_s);
 	ip->ip_off = htons(0);
 	ip->ip_ttl = 255;
