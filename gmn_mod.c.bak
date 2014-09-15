@@ -343,33 +343,33 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
 	}
 	if (info->wifi_fd > 0) {
 #ifdef DEBUG
-        uint8_t *d_buf = 0;
-        uint32_t d_len = 1000;
-        uint32_t * d_temp = 0;
-        while(d_len < 1600) {
-
-            sleep(1);
-            gtp_data_gemini_t *d_msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
-            d_buf =(uint8_t *)malloc(d_len);
-            memset(d_buf, 0xff, d_len);
-            d_buf[0] = 6;
-            d_buf[1] = 1;
-            d_buf[2] = 21;
-            d_temp = (uint32_t *)(d_buf+3);
-            *d_temp = d_len-7; 
-
-            d_msg->size = d_len+28;
-            d_msg->size = (d_msg->size)*8; //byte to bit
-			sip.sin_addr.s_addr = info->ue_ip;
-            d_msg->data = add_head(d_buf, d_len++,inet_ntoa(sip.sin_addr));
-            d_msg->rab_id = msg->rab_id;
-            d_msg->ue_id = msg->ue_id;
-
-            send_msg(d_msg, sizeof(gtp_data_gemini_t), IUH_MOD_ID, IUH_GMN_DL_UU_DATA);
-
-            GMN_LOG("%d%s", ip_id_s, "\n");
-            GMN_LOG("%d%s", d_len-1, "\n");
-        }
+//        uint8_t *d_buf = 0;
+//        uint32_t d_len = 1000;
+//        uint32_t * d_temp = 0;
+//        while(d_len < 1600) {
+//
+//            sleep(1);
+//            gtp_data_gemini_t *d_msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
+//            d_buf =(uint8_t *)malloc(d_len);
+//            memset(d_buf, 0xff, d_len);
+//            d_buf[0] = 6;
+//            d_buf[1] = 1;
+//            d_buf[2] = 21;
+//            d_temp = (uint32_t *)(d_buf+3);
+//            *d_temp = d_len-7; 
+//
+//            d_msg->size = d_len+28;
+//            d_msg->size = (d_msg->size)*8; //byte to bit
+//			sip.sin_addr.s_addr = info->ue_ip;
+//            d_msg->data = add_head(d_buf, d_len++,inet_ntoa(sip.sin_addr));
+//            d_msg->rab_id = msg->rab_id;
+//            d_msg->ue_id = msg->ue_id;
+//
+//            send_msg(d_msg, sizeof(gtp_data_gemini_t), IUH_MOD_ID, IUH_GMN_DL_UU_DATA);
+//
+//            GMN_LOG("%d%s", ip_id_s, "\n");
+//            GMN_LOG("%d%s", d_len-1, "\n");
+//        }
 
 #endif
 
