@@ -1,0 +1,8 @@
+a.out
+.ycm_extra_conf*
+*.o
+*.bak
+*.old
+*.last
+*.swp
+test/
