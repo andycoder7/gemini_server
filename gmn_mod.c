@@ -17,6 +17,7 @@
 #define GMN_LOG(data, ...) printf(data, ##__VA_ARGS__)
 #define GMN_ERR(data, ...) printf(data, ##__VA_ARGS__)
 //#define DEBUG
+//#define LOG
 #define ERROR_TOR 50
 
 struct pthread_arg {
@@ -350,7 +351,9 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
         memcpy(buf+7, m_data, *temp);
         info->next_choice = info->next_choice % 10;
         if (info->next_choice++ >= info->rate/10) {
+#ifdef LOG
             GMN_LOG("%s"," [divide msg] return data choose wifi\n");
+#endif
 #ifdef DEBUG
             int i = 0;
             GMN_LOG("%s","the data returned is: ");
@@ -364,7 +367,9 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             free(m_data);
             return send(info->wifi_fd, buf, *temp+7, 0);
         } else {
+#ifdef LOG
             GMN_LOG("%s"," [divide msg] return data choose 3G\n");
+#endif
             data = (uint8_t *)malloc(*temp+7);
 #ifdef DEBUG
             GMN_LOG("%s%d%s","malloc size is :", *temp+7, "\n");
@@ -531,8 +536,9 @@ static uint8_t ue_info_remove_by_ip(uint32_t ue_ip)
         } 
         p = p->next;
     }
-
+#ifdef LOG
     GMN_LOG("%s%u","[ue info remove by 3G ip]\tdel ue by 3G IP:", ue_ip);
+#endif
     show_all_ue_info_d();
     return ret;
 }
@@ -542,8 +548,10 @@ static uint8_t ue_info_remove_by_ip(uint32_t ue_ip)
  */
 static uint8_t close_wifi_capability(uint32_t wifi_ip)
 {
+#ifdef LOG
     GMN_LOG("%s", "[close_wifi_capability] begin \n");
     GMN_LOG("%s%d%s", "[close_wifi_capability] wifi ip: ",wifi_ip,"\n");
+#endif
 #ifdef DEBUG
     GMN_LOG("%s", "before cancel wifi capabiliy\n");
     show_all_ue_info_d();
@@ -574,7 +582,9 @@ static uint8_t close_wifi_capability(uint32_t wifi_ip)
     GMN_LOG("%s", "cancel wifi capabiliy\n");
     show_all_ue_info_d();
 #endif
+#ifdef LOG
     GMN_LOG("%s", "[close_wifi_capability] end \n");
+#endif
     return ret;
 }
 
@@ -658,7 +668,9 @@ static uint8_t update_ue_3g_info(uint8_t rate, uint32_t ip)
         p = p->next;
     }
 
+#ifdef LOG
     GMN_LOG("%s","update ue rate info\n");
+#endif
 #ifdef DEBUG
     show_all_ue_info_d();
 #endif
@@ -674,13 +686,19 @@ static uint8_t update_ue_3g_info(uint8_t rate, uint32_t ip)
  */
 static void close_wifi_connection_m(int32_t fd, uint32_t ip)
 {
+#ifdef LOG
     GMN_LOG("%s", " [close wifi connection] begin\n");
+#endif
     uint8_t buf[] = {2,3,4};
     send(fd, (void *)buf, 3, 0);
+#ifdef LOG
     GMN_LOG("%s", " [close wifi connection] finish sending and going to close fd");
+#endif
     close(fd);
     close_wifi_capability(ip);
+#ifdef LOG
     GMN_LOG("%s", " [close wifi connection] end\n");
+#endif
 }
 
 /**
@@ -726,7 +744,9 @@ static void send_wifi_ip_m(uint32_t ip, uint8_t rab_id, uint16_t ue_id)
     //forward_msg(msg);
     send_msg(msg, sizeof(gtp_data_gemini_t), IUH_MOD_ID, IUH_GMN_DL_UU_DATA);
 
+#ifdef LOG
     GMN_LOG("%s", "Send Wifi IP to UE\n");
+#endif
 
     return;
 }
@@ -743,13 +763,19 @@ static void send_result_m(int32_t fd, uint8_t flag)
 
     if (flag) {
         buf[3] = 'F';
+#ifdef LOG
         GMN_LOG("%s", "send wifi connection result: Failure\n");
+#endif
     } else {
         buf[3] = 'S';
+#ifdef LOG
         GMN_LOG("%s", "send wifi connection result: Succecc\n");
+#endif
     }
     send(fd, (void *)&buf, buf[0]+1, 0);
+#ifdef LOG
     GMN_LOG("%s", "result sended\n");
+#endif
 }
 
 
@@ -770,7 +796,9 @@ static uint8_t check_wifi_connect_m(uint8_t *buf, struct pthread_arg *arg)
     uint32_t ue_ip = 0;
     uint8_t ret = 0;
 
+#ifdef LOG
     GMN_LOG("%s%s","[check wifi connection]\tconnecting 3G IP: ", buf+3);
+#endif
 
     //inet_aton((char *)(buf+3), (struct in_addr *)&ue_ip);
     ue_ip = inet_addr((char *)(buf+3));
@@ -821,7 +849,9 @@ static void forward_data_m(uint8_t *buf, int32_t fd, uint16_t ue_id,
     GMN_LOG("%s", "\n");
 #endif
     data->size = data_len;
+#ifdef LOG
     GMN_LOG("%s%d%s"," [forward data] data's size is: ", data_len, "\n");
+#endif
     data->data = buff;
     data->ue_id = ue_id;
     data->rab_id = rab_id;
@@ -849,6 +879,7 @@ static void update_divide_info_m(uint8_t *buf, uint32_t ip)
         package_wifi = package_wifi * 10 + buf[i++] - '0';
     }
 
+    // there is a bug if package_3g and package_wifi are both 0
     rate = 100 * package_3g / (package_3g + package_wifi);
     GMN_LOG("%s%d", "[3G updata rate]the rate is ", rate);
     if(update_ue_3g_info(rate, ip) == 1)
@@ -901,7 +932,9 @@ static void *connect_ue_wifi_p(void *arg)
                     GMN_ERR("%s", "check wifi connect failed\n");
                 break;
             case 21:
+#ifdef LOG
                 GMN_LOG("%s","[forward data to CN from wifi]\n");
+#endif
                 forward_data_m(buf, arg_t->fd, arg_t->ue_id, arg_t->rab_id);
                 ret = 0;
                 break;
@@ -1054,11 +1087,15 @@ static void get_data(gtp_data_gemini_t *data)
     ip_addr_t.sin_addr.s_addr = *(uint32_t *)(data->data+12);
     GMN_LOG("%s%s%s", " source ip in IP head: ",    inet_ntoa(ip_addr_t.sin_addr), "\n");
 #endif
-    if (flag_ip_s == *temp)
+    if (flag_ip_s == *temp) {
+#ifdef LOG
         GMN_LOG("%s", " [get data from ue with 3G] flag ip == dest ip\n");
-    else 
+#endif
+    } else 
     {
+#ifdef LOG
         GMN_LOG("%s", " [get data from ue with 3G] flag ip != dest ip)");
+#endif
         msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
         msg->size = data->size;
         msg->ue_id = data->ue_id;
@@ -1072,15 +1109,19 @@ static void get_data(gtp_data_gemini_t *data)
 #endif
     switch (*(uint8_t *)(data->data+28+2)) {
         case 0:
-            GMN_LOG("%s", "Get case 0, begin to send wifi ip to ue\n");
             int j = 0;
+#ifdef LOG
+            GMN_LOG("%s", "Get case 0, begin to send wifi ip to ue\n");
+#endif
             for(j = 0; j < 30; j++) {
                 send_wifi_ip_m(*(uint32_t *)(data->data+12), data->rab_id, data->ue_id);
             }
             free(data->data);
             break;
         case 11:
+#ifdef LOG
             GMN_LOG("%s", "Get case 11, update rate info\n");
+#endif
             update_divide_info_m(data->data+28+3, *(uint32_t *)(data->data+12));
             free(data->data);
             break;
@@ -1148,7 +1189,9 @@ static void msg_handler(struct ftl_msg *msg_p)
     switch (msg->msgid) {
 
         case GMN_IUH_UL_UU_DATA:
+#ifdef LOG
             GMN_LOG("%s", " [msg handler] GMN_IUH_UL_UU_DADTA\n");
+#endif
             data = (gtp_data_gemini_t *)ftl_msg_get_ext((struct ftl_msg *)msg, type, NULL);
             if(data == NULL) {
                 GMN_ERR("%s", "it is here,cannot get  msg.########\n");
@@ -1158,12 +1201,16 @@ static void msg_handler(struct ftl_msg *msg_p)
             //get_data(data->data, &(data->size), data->rab_id, data->ue_id);
             //forward_msg(data);
 
+#ifdef LOG
             GMN_LOG("%s", "Finish send GMN_IUH_UL_UU_DATA message!\n");
+#endif
 
             break;
 
         case GMN_IUH_DL_IU_DATA:
+#ifdef LOG
             GMN_LOG("%s", " [msg handler] msg:GMN_IUH_DL_IU_DADTA\n");
+#endif
             data = (gtp_data_gemini_t *)ftl_msg_get_ext((struct ftl_msg *)msg, type, NULL);
             if(data == NULL) {
                 GMN_ERR("%s", "it is here,cannot get  msg.########\n");
@@ -1174,14 +1221,18 @@ static void msg_handler(struct ftl_msg *msg_p)
 
         case GMN_IUH_ADD_UE_INFO:
 
+#ifdef LOG
             GMN_LOG("%s", " [msg handler] GMN_IUH_ADD_UE_INFO\n");
+#endif
             data = (gtp_data_gemini_t *)ftl_msg_get_ext((struct ftl_msg *)msg, type, NULL);
             add_ue((gmn_ue_info_t *)data);
             break;
 
         case GMN_IUH_DEL_UE_INFO:
 
+#ifdef LOG
             GMN_LOG("%s", " [msg handler] GMN_IUH_DEL_UE_INFO\n");
+#endif
             data = (gtp_data_gemini_t *)ftl_msg_get_ext((struct ftl_msg *)msg, type, NULL);
             del_ue((gmn_ue_info_t *)data);
             break;
