@@ -75,6 +75,8 @@ typedef struct ue_info {
 	uint16_t  ue_id;
 	uint8_t   rab_id;
 	uint8_t   rate;
+    uint32_t  package_3g;
+    uint32_t  package_wifi;
 	uint8_t   next_choice;
 	uint32_t  wifi_ip;
 	uint32_t  ue_ip;

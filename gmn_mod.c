@@ -63,6 +63,8 @@ static void show_all_ue_info_d()
         GMN_LOG("%s%d%s", " ue_id: ",       p->ue_id, "\n");
         GMN_LOG("%s%d%s", " rab_id: ",      p->rab_id, "\n");
         GMN_LOG("%s%d%s", " rate: ",        p->rate, "\n");
+        GMN_LOG("%s%d%s", " package_3g: ",  p->package_3g, "\n");
+        GMN_LOG("%s%d%s", " package_wifi: ",p->package_wifi, "\n");
         GMN_LOG("%s%d%s", " next_choice: ", p->next_choice, "\n");
         GMN_LOG("%s%d%s", " wifi_ip: ",     p->wifi_ip, "\n");
         GMN_LOG("%s%d%s", " ue_ip: ",       p->ue_ip, "\n");
@@ -233,6 +235,8 @@ static ue_info_t *get_ue(uint16_t ue_id, uint8_t rab_id)
     GMN_LOG("%s%d%s", " ue_id: ",       p->ue_id, "\n");
     GMN_LOG("%s%d%s", " rab_id: ",      p->rab_id, "\n");
     GMN_LOG("%s%d%s", " rate: ",        p->rate, "\n");
+    GMN_LOG("%s%d%s", " package_3g: ",  p->package_3g, "\n");
+    GMN_LOG("%s%d%s", " package_wifi: ",p->package_wifi, "\n");
     GMN_LOG("%s%d%s", " next_choice: ", p->next_choice, "\n");
     GMN_LOG("%s%d%s", " wifi_ip: ",     p->wifi_ip, "\n");
     GMN_LOG("%s%d%s", " ue_ip: ",       p->ue_ip, "\n");
@@ -342,15 +346,16 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
     memcpy(m_data, msg->data, (msg->size+7)>>3);
     free(msg->data);
     if (info->wifi_fd > 0) {
-        bzero(buf, 2500);
+//        bzero(buf, 2500);
         buf[0] = 6;
         buf[1] = 1;
         buf[2] = 21;
         temp = (uint32_t *)(buf+3);
         *temp = (msg->size+7)>>3; //bit to byte
         memcpy(buf+7, m_data, *temp);
-        info->next_choice = info->next_choice % 10;
-        if (info->next_choice++ >= info->rate/10) {
+        if (info->next_choice >= (info->package_3g+info->package_wifi))
+            info->next_choice = 0;
+        if (info->next_choice++ >= info->package_3g) {
 #ifdef LOG
             GMN_LOG("%s"," [divide msg] return data choose wifi\n");
 #endif
@@ -432,6 +437,8 @@ static uint8_t ue_info_create(gmn_ue_status_t *ue_status, uint32_t ue_ip,
     ue_info_node->ue_id        = ue_status->ue_id;
     ue_info_node->rab_id       = ue_status->rab_id;
     ue_info_node->rate         = ue_status->rate;
+    ue_info_node->package_3g   = ue_status->package_3g;
+    ue_info_node->package_wifi = ue_status->package_wifi;
     ue_info_node->next_choice  = 0;
     ue_info_node->wifi_ip      = ue_status->wifi_ip;
     ue_info_node->ue_ip        = ue_ip;
@@ -566,6 +573,8 @@ static uint8_t close_wifi_capability(uint32_t wifi_ip)
             p->wifi_ip = 0;
             p->wifi_fd = -1;
             p->rate = 100;
+            p->package_wifi = 0;
+            p->package_3g = 100;
             ue_status.ue_id = p->ue_id;
             ue_status.rab_id = p->rab_id;
             ue_status.capability = 0x00;
@@ -610,7 +619,7 @@ static uint8_t update_ue_wifi_info(uint32_t ue_ip, uint32_t wifi_ip,
     GMN_LOG("%s%d%s", "update_ue_wifi_info with ue_ip: ", ue_ip, "\n");
     GMN_LOG("%s%d%s", "update_ue_wifi_info with wifi_ip: ", wifi_ip, "\n");
     GMN_LOG("%s%d%s", "update_ue_wifi_info with wifi_fd: ", clientfd, "\n");
-    GMN_LOG("%s", "after update ue wifi info\n");
+    GMN_LOG("%s", "beforer update ue wifi info\n");
     show_all_ue_info_d();
 #endif
 
@@ -647,7 +656,8 @@ static uint8_t update_ue_wifi_info(uint32_t ue_ip, uint32_t wifi_ip,
  *
  * \return On success, zero will be returned. On error, return one.
  */
-static uint8_t update_ue_3g_info(uint8_t rate, uint32_t ip)
+static uint8_t update_ue_3g_info(uint32_t package_3g, uint32_t package_wifi, 
+                                 uint8_t rate, uint32_t ip)
 {
     uint8_t ret = 1;
     ue_info_t *p = ue_info_head_s; 
@@ -656,7 +666,8 @@ static uint8_t update_ue_3g_info(uint8_t rate, uint32_t ip)
     while (NULL != p) {
         if (ip == p->ue_ip) {
             p->rate      = rate;
-
+            p->package_3g = package_3g;
+            p->package_wifi = package_wifi;
             ue_status.ue_id = p->ue_id;
             ue_status.rab_id = p->rab_id;
             ue_status.capability = 0x01;
@@ -868,8 +879,8 @@ static void update_divide_info_m(uint8_t *buf, uint32_t ip)
 {
     int8_t i = 0;
     int8_t rate = 100;
-    int8_t package_wifi = 0;
-    int8_t package_3g   = 0;
+    int32_t package_wifi = 0;
+    int32_t package_3g   = 0;
     GMN_LOG("%s%s", "[3G updata rate]get divide rate info from ue: ", buf);
     while (':' != buf[i]) {
         package_3g = package_3g * 10 + buf[i++] - '0';
@@ -879,10 +890,11 @@ static void update_divide_info_m(uint8_t *buf, uint32_t ip)
         package_wifi = package_wifi * 10 + buf[i++] - '0';
     }
 
-    // there is a bug if package_3g and package_wifi are both 0
+    if (package_3g == 0 && package_wifi == 0)
+        package_3g = package_wifi = 100;
     rate = 100 * package_3g / (package_3g + package_wifi);
     GMN_LOG("%s%d", "[3G updata rate]the rate is ", rate);
-    if(update_ue_3g_info(rate, ip) == 1)
+    if(update_ue_3g_info(package_3g, package_wifi,rate, ip) == 1)
         GMN_ERR("%s%d%s", "can't find the ue which ip is %d", ip, "\n");
 }
 
