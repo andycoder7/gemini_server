@@ -272,9 +272,9 @@ static uint8_t *add_head(uint8_t *buf, uint32_t len, char *dst_ip)
     uint8_t *new_buf = (uint8_t *)malloc(len+28);
     struct ip *ip = (struct ip *)new_buf;
     struct udphdr *udp = (struct udphdr *)(new_buf+20);
-    uint8_t *vudp = (uint8_t *)malloc(len+sizeof(vhd)+8+1);
-    vhd *hd = (vhd *)vudp;
-    vudp[len+sizeof(vhd)+8] = 0;
+//    uint8_t *vudp = (uint8_t *)malloc(len+sizeof(vhd)+8+1);
+//    vhd *hd = (vhd *)vudp;
+//    vudp[len+sizeof(vhd)+8] = 0;
 
     memcpy(new_buf+28, buf, len);
     free(buf);
@@ -294,18 +294,18 @@ static uint8_t *add_head(uint8_t *buf, uint32_t len, char *dst_ip)
     ip->ip_sum = 0;
     ip->ip_sum = checksum((uint16_t *)new_buf, 20);
 
-    memcpy(hd, new_buf+12, 8);
-    hd->ptcl = 17;
-    hd->len = htons(len+8);
+//    memcpy(hd, new_buf+12, 8);
+//    hd->ptcl = 17;
+//    hd->len = htons(len+8);
 
     udp->source = htons(ue_port_s);
     udp->dest = htons(ue_port_s);
     udp->len = htons(len+8);
     udp->check = htons(0);
 
-    memcpy(vudp+sizeof(vhd), new_buf+20, len+8);
+//    memcpy(vudp+sizeof(vhd), new_buf+20, len+8);
     // udp->check = checksum((uint16_t *)vudp, len+8+sizeof(vhd));
-    free(vudp);
+//    free(vudp);
 
     return new_buf;
 }
@@ -339,12 +339,12 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
     struct sockaddr_in sip = {0};
     uint32_t *temp = NULL;
     uint8_t *data = NULL;
-    uint8_t * m_data = NULL;
+//    uint8_t * m_data = NULL;
 
     info = get_ue(msg->ue_id, msg->rab_id);
-    m_data = (uint8_t *)malloc((msg->size+7)>>3);
-    memcpy(m_data, msg->data, (msg->size+7)>>3);
-    free(msg->data);
+//    m_data = (uint8_t *)malloc((msg->size+7)>>3);
+//    memcpy(m_data, msg->data, (msg->size+7)>>3);
+//    free(msg->data);
     if (info->wifi_fd > 0) {
 //        bzero(buf, 2500);
         buf[0] = 6;
@@ -352,7 +352,8 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
         buf[2] = 21;
         temp = (uint32_t *)(buf+3);
         *temp = (msg->size+7)>>3; //bit to byte
-        memcpy(buf+7, m_data, *temp);
+//        memcpy(buf+7, m_data, *temp);
+        memcpy(buf+7, msg->data, *temp);
         if (info->next_choice >= (info->package_3g+info->package_wifi))
             info->next_choice = 0;
         if (info->next_choice++ >= info->package_3g) {
@@ -369,7 +370,8 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             }
             GMN_LOG("%s", "\n");
 #endif
-            free(m_data);
+//            free(m_data);
+            free(msg->data);
             return send(info->wifi_fd, buf, *temp+7, 0);
         } else {
 #ifdef LOG
@@ -384,15 +386,17 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             GMN_LOG("%s","free msg's data successfully \n");
 #endif
             sip.sin_addr.s_addr = info->ue_ip;
-            free(m_data);
-            m_data = add_head(data, *temp+7, inet_ntoa(sip.sin_addr));
+//            free(m_data);
+            free(msg->data);
+//            m_data = add_head(data, *temp+7, inet_ntoa(sip.sin_addr));
+            msg->data = add_head(data, *temp+7, inet_ntoa(sip.sin_addr));
             msg->size = msg->size+(7+28)*8; //byte to bit
         }
     }
     new_msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
     new_msg->size = msg->size;
-//  new_msg->data = msg->data;
-    new_msg->data = m_data;
+//    new_msg->data = m_data;
+    new_msg->data = msg->data;
     new_msg->ue_id = msg->ue_id;
     new_msg->rab_id = msg->rab_id;
     return send_msg(new_msg, sizeof(gtp_data_gemini_t), IUH_MOD_ID, IUH_GMN_DL_UU_DATA);
