@@ -441,8 +441,8 @@ static uint8_t ue_info_create(gmn_ue_status_t *ue_status, uint32_t ue_ip,
     ue_info_node->ue_id        = ue_status->ue_id;
     ue_info_node->rab_id       = ue_status->rab_id;
     ue_info_node->rate         = ue_status->rate;
-    ue_info_node->package_3g   = ue_status->package_3g;
-    ue_info_node->package_wifi = ue_status->package_wifi;
+    ue_info_node->package_3g   = 100;
+    ue_info_node->package_wifi = 0;
     ue_info_node->next_choice  = 0;
     ue_info_node->wifi_ip      = ue_status->wifi_ip;
     ue_info_node->ue_ip        = ue_ip;
@@ -1125,13 +1125,13 @@ static void get_data(gtp_data_gemini_t *data)
 #endif
     switch (*(uint8_t *)(data->data+28+2)) {
         case 0:
-            int j = 0;
-#ifdef LOG
-            GMN_LOG("%s", "Get case 0, begin to send wifi ip to ue\n");
-#endif
-            for(j = 0; j < 30; j++) {
+//            int j = 0;
+//#ifdef LOG
+//            GMN_LOG("%s", "Get case 0, begin to send wifi ip to ue\n");
+//#endif
+//            for(j = 0; j < 30; j++) {
                 send_wifi_ip_m(*(uint32_t *)(data->data+12), data->rab_id, data->ue_id);
-            }
+//            }
             free(data->data);
             break;
         case 11:
