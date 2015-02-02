@@ -82,6 +82,7 @@ typedef struct ue_info {
 	uint32_t  ue_ip;
 	int32_t   ue_fd;
 	int32_t   wifi_fd;
+    int32_t   wifi_fd_ret;
 	struct ue_info   *next;
 } ue_info_t;
 

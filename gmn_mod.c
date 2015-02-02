@@ -40,6 +40,7 @@ typedef struct {
 static uint16_t   gemini_init_flag_s     = 0;
 static int32_t    listenfd_s             = -1;
 static uint16_t   ue_port_s              = 44444;
+static uint16_t   wifi_ret_port_s        = 44445;
 static ue_info_t  *ue_info_head_s        = NULL; 
 static uint32_t   gmn_wifi_ip_s          = 0;
 static uint32_t   gmn_3g_ip_s            = 0;
@@ -70,6 +71,7 @@ static void show_all_ue_info_d()
         GMN_LOG("%s%d%s", " ue_ip: ",       p->ue_ip, "\n");
         //      GMN_LOG("%s%d%s", " ue_fd: ",       p->ue_fd, "\n");
         GMN_LOG("%s%d%s", " wifi_fd: ",     p->wifi_fd, "\n");
+        GMN_LOG("%s%d%s", " wifi_fd_ret: ", p->wifi_fd_ret, "\n");
         p = p->next;
     }
     GMN_LOG("%s","[show all ue info in memory]=======END======\n");
@@ -242,6 +244,7 @@ static ue_info_t *get_ue(uint16_t ue_id, uint8_t rab_id)
     GMN_LOG("%s%d%s", " ue_ip: ",       p->ue_ip, "\n");
     //  GMN_LOG("%s%d%s", " ue_fd: ",       p->ue_fd, "\n");
     GMN_LOG("%s%d%s", " wifi_fd: ",     p->wifi_fd, "\n");
+    GMN_LOG("%s%d%s", " wifi_fd_ret: ", p->wifi_fd_ret, "\n");
     GMN_LOG("%s", " [get ue] ================================\n");
 #endif
     return p;
@@ -345,7 +348,7 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
 //    m_data = (uint8_t *)malloc((msg->size+7)>>3);
 //    memcpy(m_data, msg->data, (msg->size+7)>>3);
 //    free(msg->data);
-    if (info->wifi_fd > 0) {
+    if (info->wifi_fd_ret > 0) {
 //        bzero(buf, 2500);
         buf[0] = 6;
         buf[1] = 1;
@@ -372,7 +375,7 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
 #endif
 //            free(m_data);
             free(msg->data);
-            return send(info->wifi_fd, buf, *temp+7, 0);
+            return write(info->wifi_fd_ret, buf, *temp+7);
         } else {
 #ifdef LOG
             GMN_LOG("%s"," [divide msg] return data choose 3G\n");
@@ -448,6 +451,7 @@ static uint8_t ue_info_create(gmn_ue_status_t *ue_status, uint32_t ue_ip,
     ue_info_node->ue_ip        = ue_ip;
     //  ue_info_node->ue_fd        = ue_fd;
     ue_info_node->wifi_fd      = wifi_fd;
+    ue_info_node->wifi_fd_ret  = -1;
     ue_info_node->next         = NULL;
 
     if (NULL == ue_info_head_s) {
@@ -488,6 +492,7 @@ static uint8_t ue_info_remove(uint16_t ue_id)
                 ue_info_head_s = p->next;
                 //              close(p->ue_fd);
                 close(p->wifi_fd);
+                close(p->wifi_fd_ret);
 #ifdef DEBUG
                 GMN_LOG("%s%d%s", "closed ", ue_id, "'s wifi and 3G connection fd\n"); 
 #endif
@@ -504,6 +509,7 @@ static uint8_t ue_info_remove(uint16_t ue_id)
                 q = q->next;
                 //              close(p->next->ue_fd);
                 close(p->next->wifi_fd);
+                close(p->next->wifi_fd_ret);
 #ifdef DEBUG
                 GMN_LOG("%s%d%s", "closed ", ue_id, "'s wifi and 3G connection fd\n"); 
 #endif
@@ -573,9 +579,15 @@ static uint8_t close_wifi_capability(uint32_t wifi_ip)
 
     while (NULL != p) {
         if (wifi_ip == p->wifi_ip) {
+            uint8_t buf[] = {2,3,4};
+            send(p->wifi_fd, (void *)buf, 3, 0);
+            write(p->wifi_fd_ret, (void *)buf, 3);
+            close(p->wifi_fd);
+            close(p->wifi_fd_ret);
             p->next_choice = 0;
             p->wifi_ip = 0;
             p->wifi_fd = -1;
+            p->wifi_fd_ret = -1;
             p->rate = 100;
             p->package_wifi = 0;
             p->package_3g = 100;
@@ -613,7 +625,7 @@ static uint8_t close_wifi_capability(uint32_t wifi_ip)
  * \return On success, zero will be returned. On error, return one.
  */
 static uint8_t update_ue_wifi_info(uint32_t ue_ip, uint32_t wifi_ip, 
-        int32_t clientfd, uint16_t *ue_id, uint8_t *rab_id)
+        int32_t clientfd, int32_t retfd, uint16_t *ue_id, uint8_t *rab_id)
 {
     uint8_t ret = 1;
     ue_info_t *p = ue_info_head_s; 
@@ -623,6 +635,7 @@ static uint8_t update_ue_wifi_info(uint32_t ue_ip, uint32_t wifi_ip,
     GMN_LOG("%s%d%s", "update_ue_wifi_info with ue_ip: ", ue_ip, "\n");
     GMN_LOG("%s%d%s", "update_ue_wifi_info with wifi_ip: ", wifi_ip, "\n");
     GMN_LOG("%s%d%s", "update_ue_wifi_info with wifi_fd: ", clientfd, "\n");
+    GMN_LOG("%s%d%s", "update_ue_wifi_info with wifi_fd_ret: ", retfd, "\n");
     GMN_LOG("%s", "beforer update ue wifi info\n");
     show_all_ue_info_d();
 #endif
@@ -631,6 +644,7 @@ static uint8_t update_ue_wifi_info(uint32_t ue_ip, uint32_t wifi_ip,
         if (ue_ip == p->ue_ip) {
             p->wifi_ip      = wifi_ip;
             p->wifi_fd      = clientfd;
+            p->wifi_fd_ret  = retfd;
             *ue_id          = p->ue_id;
             *rab_id         = p->rab_id;
 
@@ -699,22 +713,22 @@ static uint8_t update_ue_3g_info(uint32_t package_3g, uint32_t package_wifi,
  * \param fd [in] the connection fd under wifi
  * \param ip [in] the wifi ip address
  */
-static void close_wifi_connection_m(int32_t fd, uint32_t ip)
-{
-#ifdef LOG
-    GMN_LOG("%s", " [close wifi connection] begin\n");
-#endif
-    uint8_t buf[] = {2,3,4};
-    send(fd, (void *)buf, 3, 0);
-#ifdef LOG
-    GMN_LOG("%s", " [close wifi connection] finish sending and going to close fd");
-#endif
-    close(fd);
-    close_wifi_capability(ip);
-#ifdef LOG
-    GMN_LOG("%s", " [close wifi connection] end\n");
-#endif
-}
+//static void close_wifi_connection_m(int32_t fd, uint32_t ip)
+//{
+//#ifdef LOG
+//    GMN_LOG("%s", " [close wifi connection] begin\n");
+//#endif
+//    uint8_t buf[] = {2,3,4};
+//    send(fd, (void *)buf, 3, 0);
+//#ifdef LOG
+//    GMN_LOG("%s", " [close wifi connection] finish sending and going to close fd");
+//#endif
+//    close(fd);
+//    close_wifi_capability(ip);
+//#ifdef LOG
+//    GMN_LOG("%s", " [close wifi connection] end\n");
+//#endif
+//}
 
 /**
  * \brief method from protocol, send local wifi ip to ue
@@ -787,7 +801,8 @@ static void send_result_m(int32_t fd, uint8_t flag)
         GMN_LOG("%s", "send wifi connection result: Succecc\n");
 #endif
     }
-    send(fd, (void *)&buf, buf[0]+1, 0);
+//    send(fd, (void *)&buf, buf[0]+1, 0);
+    write(fd, (void *)&buf, buf[0]+1);
 #ifdef LOG
     GMN_LOG("%s", "result sended\n");
 #endif
@@ -810,17 +825,33 @@ static uint8_t check_wifi_connect_m(uint8_t *buf, struct pthread_arg *arg)
     //struct sockaddr_in ue_ip = {0};
     uint32_t ue_ip = 0;
     uint8_t ret = 0;
+    struct sockaddr_in servaddr = {0};
+    int ret_sockfd = 0;
 
 #ifdef LOG
     GMN_LOG("%s%s","[check wifi connection]\tconnecting 3G IP: ", buf+3);
 #endif
 
-    //inet_aton((char *)(buf+3), (struct in_addr *)&ue_ip);
     ue_ip = inet_addr((char *)(buf+3));
-    //ret = update_ue_wifi_info(ue_ip.sin_addr.s_addr, arg->ip, arg->fd, 
-    ret = update_ue_wifi_info(ue_ip, arg->ip, arg->fd, 
+
+    if ((ret_sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        return ERROR_TOR;
+    }
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(wifi_ret_port_s);
+    servaddr.sin_addr.s_addr = arg->ip;
+    if(connect(ret_sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1) {
+#ifdef LOG
+    GMN_ERR("%s","[check wifi connection]\tcreate wifi return tunnel failed\n");
+#endif
+        return ERROR_TOR;
+    }
+
+    ret = update_ue_wifi_info(ue_ip, arg->ip, arg->fd, ret_sockfd, 
             &(arg->ue_id), &(arg->rab_id));
-    send_result_m(arg->fd, ret);
+//    send_result_m(arg->fd, ret);
+    send_result_m(ret_sockfd, ret);
     if(ret)
         ret = ERROR_TOR;
 
@@ -961,7 +992,8 @@ static void *connect_ue_wifi_p(void *arg)
                 continue;
         }
     }
-    close_wifi_connection_m(arg_t->fd, arg_t->ip);
+//    close_wifi_connection_m(arg_t->fd, arg_t->ip);
+    close_wifi_capability(arg_t->ip);
     free(arg);
 
     return NULL;
@@ -1298,6 +1330,7 @@ static uint8_t ue_info_free_all(void)
         ue_info_head_s = back->next;
         //      close(back->ue_fd);
         close(back->wifi_fd);
+        close(back->wifi_fd_ret);
         free(back);
     }
 
