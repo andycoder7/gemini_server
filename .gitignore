@@ -1,4 +1,6 @@
 a.out
+tags
+ctags
 .ycm_extra_conf*
 *.o
 *.bak

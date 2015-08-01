@@ -20,6 +20,7 @@
 //#define LOG
 #define ERROR_TOR 50
 #define MQ_LEN 1000
+#define MAX_SEQ 10000
 
 struct pthread_arg {
     int32_t  fd;
@@ -76,6 +77,8 @@ static void show_all_ue_info_d()
         //      GMN_LOG("%s%d%s", " ue_fd: ",       p->ue_fd, "\n");
         GMN_LOG("%s%d%s", " wifi_fd: ",     p->wifi_fd, "\n");
         GMN_LOG("%s%d%s", " wifi_fd_ret: ", p->wifi_fd_ret, "\n");
+        GMN_LOG("%s%d%s", " seq: ",     	p->seq, "\n");
+        GMN_LOG("%s%d%s", " seq_lock: ", 	p->seq_lock, "\n");
         p = p->next;
     }
     GMN_LOG("%s","[show all ue info in memory]=======END======\n");
@@ -261,6 +264,8 @@ static ue_info_t *get_ue(uint16_t ue_id, uint8_t rab_id)
     //  GMN_LOG("%s%d%s", " ue_fd: ",       p->ue_fd, "\n");
     GMN_LOG("%s%d%s", " wifi_fd: ",     p->wifi_fd, "\n");
     GMN_LOG("%s%d%s", " wifi_fd_ret: ", p->wifi_fd_ret, "\n");
+	GMN_LOG("%s%d%s", " seq: ",     	p->seq, "\n");
+	GMN_LOG("%s%d%s", " seq_lock: ", 	p->seq_lock, "\n");
     GMN_LOG("%s", " [get ue] ================================\n");
 #endif
     return p;
@@ -358,21 +363,39 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
     struct sockaddr_in sip = {0};
     uint32_t *temp = NULL;
     uint8_t *data = NULL;
-//    uint8_t * m_data = NULL;
 
     info = get_ue(msg->ue_id, msg->rab_id);
-//    m_data = (uint8_t *)malloc((msg->size+7)>>3);
-//    memcpy(m_data, msg->data, (msg->size+7)>>3);
-//    free(msg->data);
     if (info->wifi_fd_ret > 0) {
-//        bzero(buf, 2500);
         buf[0] = 6;
         buf[1] = 1;
         buf[2] = 21;
         temp = (uint32_t *)(buf+3);
         *temp = (msg->size+7)>>3; //bit to byte
-//        memcpy(buf+7, m_data, *temp);
-        memcpy(buf+7, msg->data, *temp);
+        
+//=======add 2Byte seq info=======
+        uint16_t* s = (uint16_t *)(buf+7);
+        uint16_t lock_break = 0;
+        if(info->seq_lock++ == 0) {
+            *s = info->seq;
+            info->seq = (info->seq + 1)%MAX_SEQ;
+            info->seq_lock = 0;
+        } else {
+//#ifdef DEBUG
+            GMN_LOG("%s", "\nseq has locked! waiting for unlock. \n");
+//#endif
+            while(info->seq_lock != 0 && lock_break++<10) { usleep(10); }
+            info->seq_lock = 1;
+            *s = info->seq;
+            info->seq = (info->seq + 1)%MAX_SEQ;
+            info->seq_lock = 0;
+        }
+//#ifdef DEBUG
+        GMN_LOG("%s%d%s", "\nmessage's seq is: ", *s, "\n");
+//#endif
+        memcpy(buf+9, msg->data, *temp);
+        *temp = *temp + 2; // add the 2Byte about seq
+//        memcpy(buf+7, msg->data, *temp);
+//=======finish add================
         if (info->next_choice >= (info->package_3g+info->package_wifi))
             info->next_choice = 0;
         if (info->next_choice++ >= info->package_3g) {
@@ -389,7 +412,6 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             }
             GMN_LOG("%s", "\n");
 #endif
-//            free(m_data);
             free(msg->data);
             return write(info->wifi_fd_ret, buf, *temp+7);
         } else {
@@ -405,16 +427,14 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             GMN_LOG("%s","free msg's data successfully \n");
 #endif
             sip.sin_addr.s_addr = info->ue_ip;
-//            free(m_data);
             free(msg->data);
-//            m_data = add_head(data, *temp+7, inet_ntoa(sip.sin_addr));
             msg->data = add_head(data, *temp+7, inet_ntoa(sip.sin_addr));
-            msg->size = msg->size+(7+28)*8; //byte to bit
+            msg->size = msg->size+(7+2+28)*8; //byte to bit, 7=HDTC 2=SEQ 28=head
+//            msg->size = msg->size+(7+28)*8; //byte to bit
         }
     }
     new_msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
     new_msg->size = msg->size;
-//    new_msg->data = m_data;
     new_msg->data = msg->data;
     new_msg->ue_id = msg->ue_id;
     new_msg->rab_id = msg->rab_id;
@@ -468,6 +488,8 @@ static uint8_t ue_info_create(gmn_ue_status_t *ue_status, uint32_t ue_ip,
     //  ue_info_node->ue_fd        = ue_fd;
     ue_info_node->wifi_fd      = wifi_fd;
     ue_info_node->wifi_fd_ret  = -1;
+	ue_info_node->seq		   = 0;
+	ue_info_node->seq_lock     = 0;
     ue_info_node->next         = NULL;
 
     if (NULL == ue_info_head_s) {
@@ -607,6 +629,8 @@ static uint8_t close_wifi_capability(uint32_t wifi_ip)
             p->rate = 100;
             p->package_wifi = 0;
             p->package_3g = 100;
+			p->seq = 0;
+			p->seq_lock = 0;
             ue_status.ue_id = p->ue_id;
             ue_status.rab_id = p->rab_id;
             ue_status.capability = 0x00;

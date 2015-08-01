@@ -212,6 +212,7 @@ static uint8_t send_msg(void *data, uint32_t len, uint32_t mod_id, uint32_t msg_
         }
         ftl_msg_delete((struct ftl_msg *)msg);
         ret = 1;
+        return ret;
     }
     
     if (free_flag != 1) {
@@ -905,16 +906,17 @@ static void forward_data_m(uint8_t *buf, int32_t fd, uint16_t ue_id,
     data->size = data_len;
     data->data = buff;
     
-    if (updata_mq_s[updata_mq_head_s] != NULL) {
-        while (updata_mq_head_s == updata_mq_last_s && err_tor<5) {
-            usleep(50);
-            err_tor++;
-        }
-        free(updata_mq_s[updata_mq_head_s]->data);
-        free(updata_mq_s[updata_mq_head_s]);
-    } 
-    updata_mq_s[updata_mq_head_s] = data;
-    updata_mq_head_s = (updata_mq_head_s + 1) % MQ_LEN;
+//    if (updata_mq_s[updata_mq_head_s] != NULL) {
+//        while (updata_mq_head_s == updata_mq_last_s && err_tor<5) {
+//            usleep(50);
+//            err_tor++;
+//        }
+//        free(updata_mq_s[updata_mq_head_s]->data);
+//        free(updata_mq_s[updata_mq_head_s]);
+//    } 
+//    updata_mq_s[updata_mq_head_s] = data;
+//    updata_mq_head_s = (updata_mq_head_s + 1) % MQ_LEN;
+    forward_msg(data, 1);
 }
 
 
@@ -948,19 +950,19 @@ static void update_divide_info_m(uint8_t *buf, uint32_t ip)
         GMN_ERR("%s%d%s", "can't find the ue which ip is %d", ip, "\n");
 }
 
-static void *upload_data_to_cn_p(void *arg)
-{
-    while(1) {
-        if (updata_mq_s[updata_mq_last_s]) {
-            forward_msg(updata_mq_s[updata_mq_last_s], 0);
-            updata_mq_s[updata_mq_last_s] = NULL;
-            updata_mq_last_s = (updata_mq_last_s + 1) % MQ_LEN;
-        } else {
-            usleep(5000);
-        }
-    }
-    return (void *)NULL;
-}
+//static void *upload_data_to_cn_p(void *arg)
+//{
+//    while(1) {
+//        if (updata_mq_s[updata_mq_last_s]) {
+//            forward_msg(updata_mq_s[updata_mq_last_s], 0);
+//            updata_mq_s[updata_mq_last_s] = NULL;
+//            updata_mq_last_s = (updata_mq_last_s + 1) % MQ_LEN;
+//        } else {
+//            usleep(5000);
+//        }
+//    }
+//    return (void *)NULL;
+//}
 
 /**
  * \brief pthread process, communicating with mobile phone under wifi 
@@ -1050,11 +1052,11 @@ static void *wifi_listener_start_p(void *arg)
         return NULL;
     }
 
-    if (0 != pthread_create(&thread2, NULL, upload_data_to_cn_p, (void *)NULL)) {
-    } else {
-        GMN_LOG("%s","[wifi listening] has created upload data pthread\n");
-        pthread_detach(thread2);
-    }
+//    if (0 != pthread_create(&thread2, NULL, upload_data_to_cn_p, (void *)NULL)) {
+//    } else {
+//        GMN_LOG("%s","[wifi listening] has created upload data pthread\n");
+//        pthread_detach(thread2);
+//    }
 
     while (1) {
         wifi_arg = malloc(sizeof(struct pthread_arg));
@@ -1482,7 +1484,6 @@ gmn_mod_rst_t gemini_deinit(void)
 
     return GMN_MOD_RST_SUCCESS;
 }
-/*
 int32_t main(int argc, char *argv[])
 {
     if (GMN_MOD_RST_SUCCESS != gemini_init()) {
