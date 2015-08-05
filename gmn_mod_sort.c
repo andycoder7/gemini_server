@@ -49,9 +49,9 @@ static uint32_t   gmn_3g_ip_s            = 0;
 static pthread_t  wifi_listen_p_s        = 0;
 static uint32_t   flag_ip_s              = 0;
 static uint16_t   ip_id_s                = 1;
-static gtp_data_gemini_t * updata_mq_s[MQ_LEN]; 
-static uint32_t   updata_mq_head_s       = 0;
-static uint32_t   updata_mq_last_s       = 0;
+//static gtp_data_gemini_t * updata_mq_s[MQ_LEN]; 
+//static uint32_t   updata_mq_head_s       = 0;
+//static uint32_t   updata_mq_last_s       = 0;
 
 /*=======================================DEBUG===============================*/
 
@@ -380,18 +380,18 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
             info->seq = (info->seq + 1)%MAX_SEQ;
             info->seq_lock = 0;
         } else {
-//#ifdef DEBUG
+#ifdef DEBUG
             GMN_LOG("%s", "\nseq has locked! waiting for unlock. \n");
-//#endif
+#endif
             while(info->seq_lock != 0 && lock_break++<10) { usleep(10); }
             info->seq_lock = 1;
             *s = info->seq;
             info->seq = (info->seq + 1)%MAX_SEQ;
             info->seq_lock = 0;
         }
-//#ifdef DEBUG
+#ifdef DEBUG
         GMN_LOG("%s%d%s", "\nmessage's seq is: ", *s, "\n");
-//#endif
+#endif
         memcpy(buf+9, msg->data, *temp);
         *temp = *temp + 2; // add the 2Byte about seq
 //        memcpy(buf+7, msg->data, *temp);
@@ -929,16 +929,17 @@ static void forward_data_m(uint8_t *buf, int32_t fd, uint16_t ue_id,
     data->size = data_len;
     data->data = buff;
     
-    if (updata_mq_s[updata_mq_head_s] != NULL) {
-        while (updata_mq_head_s == updata_mq_last_s && err_tor<5) {
-            usleep(50);
-            err_tor++;
-        }
-        free(updata_mq_s[updata_mq_head_s]->data);
-        free(updata_mq_s[updata_mq_head_s]);
-    } 
-    updata_mq_s[updata_mq_head_s] = data;
-    updata_mq_head_s = (updata_mq_head_s + 1) % MQ_LEN;
+//    if (updata_mq_s[updata_mq_head_s] != NULL) {
+//        while (updata_mq_head_s == updata_mq_last_s && err_tor<5) {
+//            usleep(50);
+//            err_tor++;
+//        }
+//        free(updata_mq_s[updata_mq_head_s]->data);
+//        free(updata_mq_s[updata_mq_head_s]);
+//    } 
+//    updata_mq_s[updata_mq_head_s] = data;
+//    updata_mq_head_s = (updata_mq_head_s + 1) % MQ_LEN;
+    forward_msg(data, 1);
 }
 
 
@@ -971,7 +972,7 @@ static void update_divide_info_m(uint8_t *buf, uint32_t ip)
     if(update_ue_3g_info(package_3g, package_wifi,rate, ip) == 1)
         GMN_ERR("%s%d%s", "can't find the ue which ip is %d", ip, "\n");
 }
-
+/*
 static void *upload_data_to_cn_p(void *arg)
 {
     while(1) {
@@ -985,7 +986,7 @@ static void *upload_data_to_cn_p(void *arg)
     }
     return (void *)NULL;
 }
-
+*/
 /**
  * \brief pthread process, communicating with mobile phone under wifi 
  */
@@ -1061,7 +1062,7 @@ static void *wifi_listener_start_p(void *arg)
     socklen_t len = sizeof(addr);
     int32_t clientfd = -1;
     pthread_t thread = 0;
-    pthread_t thread2 = 0;
+//    pthread_t thread2 = 0;
     struct pthread_arg *wifi_arg = NULL;
 
     if (!gmn_3g_ip_s || -1 == listenfd_s) {
@@ -1074,11 +1075,11 @@ static void *wifi_listener_start_p(void *arg)
         return NULL;
     }
 
-    if (0 != pthread_create(&thread2, NULL, upload_data_to_cn_p, (void *)NULL)) {
-    } else {
-        GMN_LOG("%s","[wifi listening] has created upload data pthread\n");
-        pthread_detach(thread2);
-    }
+//    if (0 != pthread_create(&thread2, NULL, upload_data_to_cn_p, (void *)NULL)) {
+//    } else {
+//        GMN_LOG("%s","[wifi listening] has created upload data pthread\n");
+//        pthread_detach(thread2);
+//    }
 
     while (1) {
         wifi_arg = malloc(sizeof(struct pthread_arg));
@@ -1403,16 +1404,16 @@ static uint8_t ue_info_free_all(void)
 gmn_mod_rst_t gemini_init(void)
 {
     uint8_t ret = 0;
-    uint16_t i = 0;
+//    uint16_t i = 0;
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     signal(SIGPIPE, sig_handler);
 
-    updata_mq_head_s = 0;
-    for (i = 0; i < MQ_LEN; i++) {
-        updata_mq_s[i] = NULL;
-    }
+//    updata_mq_head_s = 0;
+//    for (i = 0; i < MQ_LEN; i++) {
+//        updata_mq_s[i] = NULL;
+//    }
 
     ret = gmn_3g_init();
     ret += gmn_wifi_init();
