@@ -365,7 +365,7 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
     uint8_t *data = NULL;
 
     info = get_ue(msg->ue_id, msg->rab_id);
-    if (info->wifi_fd_ret > 0) {
+    if (info != NULL && info->wifi_fd_ret > 0) {
         buf[0] = 6;
         buf[1] = 1;
         buf[2] = 21;
@@ -436,6 +436,16 @@ static uint8_t divide_msg(gtp_data_gemini_t *msg)
     new_msg = (gtp_data_gemini_t *)malloc(sizeof(gtp_data_gemini_t));
     new_msg->size = msg->size;
     new_msg->data = msg->data;
+#ifdef DEBUG
+            int i = 0;
+            GMN_LOG("%s","the data returned is: ");
+            for (i = 0; i < (msg->size)/8; i++) {
+                if (i%8 == 0)
+                    GMN_LOG("%s", "\n");
+                GMN_LOG("%x%s", *(msg->data+i), "\t");
+            }
+            GMN_LOG("%s", "\n");
+#endif
     new_msg->ue_id = msg->ue_id;
     new_msg->rab_id = msg->rab_id;
     return send_msg(new_msg, sizeof(gtp_data_gemini_t), IUH_MOD_ID, IUH_GMN_DL_UU_DATA, 1);
@@ -907,7 +917,7 @@ static void forward_data_m(uint8_t *buf, int32_t fd, uint16_t ue_id,
         uint8_t rab_id)
 {
     uint32_t data_len = 0;
-    uint8_t err_tor = 0;
+//    uint8_t err_tor = 0;
     uint8_t * buff = NULL;
     gtp_data_gemini_t *data = NULL;
 
